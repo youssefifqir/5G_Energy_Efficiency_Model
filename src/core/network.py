@@ -148,8 +148,8 @@ class MassiveMIMOChannel(ChannelModel):
         d_iik = self.large_scale_fading[k, k]
         rho_iik = self.channel_estimation_quality[k]
         
-        # α_k = ρ²_iik (equation 21)
-        alpha_k = rho_iik ** 2
+        # α_k = ρ²_iik * M (equation 21 with massive MIMO array gain)
+        alpha_k = rho_iik ** 2 * self.n_antennas
         
         # φ_k = d_iik * ρ_iik + Σ_{l≠i} ρ²_ilk (equation 22)
         # For single cell (l=i only), simplified:

@@ -13,17 +13,18 @@ class DQNNetwork(nn.Module):
     """
     Deep Q-Network for power control
     
-    Architecture: Input → FC1 → ReLU → FC2 → ReLU → FC3 → ReLU → Output
+    Architecture: Input → FC1 → ReLU → Dropout → FC2 → ReLU → Dropout → FC3 → ReLU → Output
     """
     
-    def __init__(self, state_dim: int, action_dim: int, hidden_layers: list = [128, 256, 128]):
+    def __init__(self, state_dim: int, action_dim: int, hidden_layers: list = [128, 256, 128], dropout: float = 0.0):
         """
         Initialize DQN network
         
         Args:
-            state_dim: Dimension of state space (5 in our case)
-            action_dim: Number of discrete actions (power levels)
+            state_dim: Dimension of state space
+            action_dim: Number of discrete actions
             hidden_layers: List of hidden layer sizes
+            dropout: Dropout probability (0.0 = no dropout)
         """
         super(DQNNetwork, self).__init__()
         
@@ -34,9 +35,11 @@ class DQNNetwork(nn.Module):
         layers = []
         input_dim = state_dim
         
-        for hidden_dim in hidden_layers:
+        for i, hidden_dim in enumerate(hidden_layers):
             layers.append(nn.Linear(input_dim, hidden_dim))
             layers.append(nn.ReLU())
+            if dropout > 0.0 and i < len(hidden_layers) - 1:  # No dropout before output
+                layers.append(nn.Dropout(dropout))
             input_dim = hidden_dim
         
         # Output layer (Q-values for each action)
@@ -166,7 +169,8 @@ class DuelingDQN(nn.Module):
 def create_dqn_model(state_dim: int, 
                      action_dim: int, 
                      model_type: str = "standard",
-                     hidden_layers: list = [128, 256, 128]) -> nn.Module:
+                     hidden_layers: list = [128, 256, 128],
+                     dropout: float = 0.0) -> nn.Module:
     """
     Factory function to create DQN models
     
@@ -175,12 +179,13 @@ def create_dqn_model(state_dim: int,
         action_dim: Action space dimension
         model_type: "standard" or "dueling"
         hidden_layers: Hidden layer sizes
+        dropout: Dropout probability
         
     Returns:
         DQN model
     """
     if model_type == "standard":
-        return DQNNetwork(state_dim, action_dim, hidden_layers)
+        return DQNNetwork(state_dim, action_dim, hidden_layers, dropout)
     elif model_type == "dueling":
         return DuelingDQN(state_dim, action_dim, hidden_layers[:2])
     else:

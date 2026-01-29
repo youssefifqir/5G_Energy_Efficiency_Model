@@ -191,12 +191,12 @@ class PowerControlEnvV2:
         
         # === NOUVEAUX ÉTATS ===
         
-        # Channel quality (alpha_k)
+        # Channel quality (alpha_k) - normalize based on realistic massive MIMO ranges
         alpha_k, phi_k, omega_kj, sigma_sq = self.channel.compute_sinr_coefficients(self.user_idx)
-        channel_quality = min(alpha_k * 1000, 1.0)  # Normalize
+        channel_quality = np.clip(alpha_k / 1.0, 0.0, 1.0)  # alpha_k now ~1-50 range
         
-        # Self-interference (phi_k)
-        self_interference = min(phi_k * 1000, 1.0)  # Normalize
+        # Self-interference (phi_k) - normalize based on realistic ranges  
+        self_interference = np.clip(phi_k / 1e-6, 0.0, 1.0)  # phi_k ~1e-10 to 1e-6 range
         
         # Average power last 3 steps
         avg_power_history = np.mean(self.power_history)
@@ -242,31 +242,25 @@ class PowerControlEnvV2:
     
     def _compute_dense_reward(self, ee: float, qos_violated: bool, power: float, rate: float) -> float:
         """
-        DENSE REWARD - Feedback à chaque step
+        DENSE REWARD - Using config parameters for proper scaling
         
-        Idée: Récompenser amélioration progressive
+        Reward = α_ee * (EE / ee_scale) - β_qos * qos_penalty - γ_power * power_penalty
         """
-        # Pénalité QoS (comme avant)
+        # Scale EE using config parameter
+        ee_scaled = ee / self.reward_config['ee_scale']
+        
+        # Base EE reward
+        reward_ee = self.reward_config['alpha_ee'] * ee_scaled
+        
+        # QoS penalty
         if qos_violated:
-            return -100.0
+            reward_ee -= self.reward_config['beta_qos']
         
-        # Récompense de base: EE
-        reward_ee = ee / 1000.0
+        # Power penalty (normalized)
+        power_penalty = self.reward_config['gamma_power'] * (power / self.p_max)
         
-        # BONUS: Si amélioration par rapport à step précédent
-        if self.prev_ee is not None:
-            delta_ee = ee - self.prev_ee
-            if delta_ee > 0:
-                reward_ee += (delta_ee / 1000.0) * 5.0  # Bonus amélioration
-        
-        self.prev_ee = ee
-        
-        # Petite pénalité puissance
-        power_normalized = power / self.p_max
-        penalty_power = power_normalized * 0.5
-        
-        # Total
-        reward = reward_ee - penalty_power
+        # Total reward
+        reward = reward_ee - power_penalty
         
         return reward
     

@@ -50,18 +50,21 @@ class DQNTrainer:
         
         # Create policy and target networks
         hidden_layers = cfg['network']['hidden_layers']
+        dropout = cfg['network'].get('dropout', 0.0)
         self.policy_net = create_dqn_model(
             state_dim, 
             action_dim, 
             model_type="standard",
-            hidden_layers=hidden_layers
+            hidden_layers=hidden_layers,
+            dropout=dropout
         ).to(self.device)
         
         self.target_net = create_dqn_model(
             state_dim,
             action_dim,
             model_type="standard", 
-            hidden_layers=hidden_layers
+            hidden_layers=hidden_layers,
+            dropout=dropout
         ).to(self.device)
         
         # Initialize target network with policy network weights

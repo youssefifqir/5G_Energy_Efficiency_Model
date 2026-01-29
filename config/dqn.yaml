@@ -1,47 +1,47 @@
-# DQN Hyperparameters - Optimized for 3-day sprint
+# DQN Hyperparameters - STABILIZED for realistic 5G
 dqn:
   # Network architecture
   network:
     hidden_layers: [256, 512, 256]  # 3 hidden layers
     activation: "relu"
-    dropout: 0.0  # No dropout for faster training
+    dropout: 0.1  # Add dropout for stability
   
   # Training parameters
   training:
-    # Learning
-    learning_rate: 0.0003
+    # Learning - REDUCED for stability
+    learning_rate: 0.0001  # ↓ from 0.0003
     batch_size: 128
     gamma: 0.99  # Discount factor
     
     # Replay buffer
-    buffer_size: 100000  # Reduced for speed
-    min_buffer_size: 2000  # Start learning after 2k samples
+    buffer_size: 100000
+    min_buffer_size: 2000
     
-    # Target network
-    target_update_freq: 100  # Update every 100 steps
-    soft_update_tau: 0.005  # Soft update parameter
+    # Target network - LESS FREQUENT updates
+    target_update_freq: 500  # ↑ from 100
+    soft_update_tau: 0.001  # ↓ from 0.005
     
     # Exploration (ε-greedy)
     epsilon_start: 1.0
     epsilon_end: 0.01
-    epsilon_decay: 0.997  # Decay per episode
+    epsilon_decay: 0.997
     
-    # Loss function
-    loss_type: "huber"  # "huber" or "mse"
-    huber_delta: 1.0
+    # Loss function - MORE ROBUST
+    loss_type: "huber"
+    huber_delta: 2.0  # ↑ from 1.0
   
   # Action space (discrete power levels)
   actions:
     n_levels: 30  # Number of discrete power levels
     # Will be linearly spaced between min_power and max_power
   
-  # Reward function (equation 7 from your document)
+  # Reward function - BALANCED scaling for realistic performance
   reward:
-    alpha_ee: 10.0     # ↑ Augmenter (était 1.0)
-    beta_qos: 5.0      # ↓ Réduire (était 10.0)
-    gamma_power: 0.01  # Garder
+    alpha_ee: 5.0      # ↑ from 1.0 (moderate EE reward)
+    beta_qos: 5.0      # ↓ from 10.0 (balanced QoS penalty)
+    gamma_power: 0.05  # ↓ from 0.1 (moderate power penalty)
     normalize_ee: true
-    ee_scale: 100000.0  # ↑ Augmenter (était 100.0)
+    ee_scale: 500000.0  # ↓ from 1M (moderate scaling)
 
 # Training schedule (FAST - 3 days)
 schedule:
