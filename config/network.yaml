@@ -1,0 +1,51 @@
+# Network Configuration - Based on Paper Section VII-A (Massive MIMO)
+network:
+  # Number of users (K)
+  n_users: 5
+  
+  # Number of resource blocks (N)
+  n_blocks: 1  # Start with single block (Section III)
+  
+  # Bandwidth per block (MHz)
+  bandwidth: 1.0
+  
+  # Base station antennas (M) - Massive MIMO
+  n_antennas: 50
+  
+  # Channel parameters
+  channel:
+    # Path loss model from paper
+    path_loss_exponent: 3.76
+    shadowing_std: 8.0  # dB
+    
+    # Noise parameters (Section VII-A)
+    noise_figure: 3.0  # dB (F)
+    noise_psd: -174.0  # dBm/Hz (N0)
+    
+    # Hardware impairments (Section II-C1)
+    error_magnitude_bs: 0.1  # ε_BS for base station
+    error_magnitude_ue: 0.0  # No UE impairments initially
+    
+    # MMSE channel estimation
+    pilot_power_tau: 0.01  # τ parameter (equation 19)
+  
+  # Power constraints (equation 3)
+  power:
+    min_power: -40.0  # dBW
+    max_power: -10.0  # dBW
+    
+    # Circuit power per user (pc,k in equation 2)
+    circuit_power: 10.0  # dBm
+  
+  # QoS constraints (equation 4)
+  qos:
+    # Minimum rate as percentage of max rate (R%)
+    min_rate_percentage: 20.0  # 20% as in paper
+    
+    # Enable QoS constraints
+    enable_constraints: true
+  
+  # Deployment
+  deployment:
+    cell_radius: 500.0  # meters
+    min_user_distance: 50.0  # meters from BS
