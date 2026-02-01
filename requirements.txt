@@ -1,23 +1,22 @@
-# Power Control DQN - Requirements
 # Core Deep Learning
-torch==2.0.1
-numpy==1.24.3
+torch
+numpy
 
 # Visualization
-matplotlib==3.7.1
-seaborn==0.12.2
+matplotlib
+seaborn
 
 # Config & Utils
-pyyaml==6.0
-tqdm==4.65.0
+pyyaml
+tqdm
 
 # Logging
-tensorboard==2.13.0
+tensorboard
 
 # Scientific
-scipy==1.10.1
-pandas==2.0.2
+scipy
+pandas
 
-# Notebooks (optional for demo)
-jupyter==1.0.0
-ipywidgets==7.6.5
+# Notebooks (optional)
+jupyter
+ipywidgets

@@ -4,7 +4,7 @@ High-level interface for DQN-based power control agent
 """
 
 import numpy as np
-from ..dqn.trainer import DQNTrainer
+from dqn.trainer import DQNTrainer
 
 
 class DQNAgent:
