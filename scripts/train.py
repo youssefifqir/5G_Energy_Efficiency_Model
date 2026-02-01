@@ -2,15 +2,13 @@
 Fast Training Script - Working Version
 """
 import sys
-from pathlib import Path
+import os
 
-# Get the absolute path to project root
-project_root = Path(__file__).parent.absolute()
-sys.path.insert(0, str(project_root))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+SRC_PATH = os.path.join(PROJECT_ROOT, "src")
 
-# Add project root to path for src imports
-project_path = project_root.parent
-sys.path.insert(0, str(project_path))
+sys.path.insert(0, SRC_PATH)
+
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,8 +16,11 @@ from tqdm import tqdm
 import os
 import yaml
 
-from src.core.environment import PowerControlEnvV2 as PowerControlEnv
-from src.core.agent import DQNAgent
+from core.environment import PowerControlEnv
+from core.agent import DQNAgent
+
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 
 
 def train_single_user(config_path="config", n_episodes=600, save_freq=100):

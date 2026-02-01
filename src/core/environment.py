@@ -7,7 +7,7 @@ import yaml
 from .network import create_channel_model
 
 
-class PowerControlEnvV2:
+class PowerControlEnv:
     """
     Enhanced 5G Power Control Environment
     

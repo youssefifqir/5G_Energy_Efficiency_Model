@@ -9,7 +9,7 @@ dqn:
   # Training parameters
   training:
     # Learning - REDUCED for stability
-    learning_rate: 0.0001  # ↓ from 0.0003
+    learning_rate: 0.00001  # ↓ from 0.0003
     batch_size: 128
     gamma: 0.99  # Discount factor
     
@@ -18,13 +18,13 @@ dqn:
     min_buffer_size: 2000
     
     # Target network - LESS FREQUENT updates
-    target_update_freq: 500  # ↑ from 100
+    target_update_freq: 1000  # ↑ from 100
     soft_update_tau: 0.001  # ↓ from 0.005
     
     # Exploration (ε-greedy)
     epsilon_start: 1.0
-    epsilon_end: 0.01
-    epsilon_decay: 0.997
+    epsilon_end: 0.05
+    epsilon_decay: 0.999
     
     # Loss function - MORE ROBUST
     loss_type: "huber"
@@ -32,16 +32,16 @@ dqn:
   
   # Action space (discrete power levels)
   actions:
-    n_levels: 30  # Number of discrete power levels
+    n_levels: 16  # Number of discrete power levels
     # Will be linearly spaced between min_power and max_power
   
   # Reward function - BALANCED scaling for realistic performance
   reward:
-    alpha_ee: 5.0      # ↑ from 1.0 (moderate EE reward)
-    beta_qos: 5.0      # ↓ from 10.0 (balanced QoS penalty)
-    gamma_power: 0.05  # ↓ from 0.1 (moderate power penalty)
+    alpha_ee: 1.0      # ↑ from 1.0 (moderate EE reward)
+    beta_qos: 10.0      # ↓ from 10.0 (balanced QoS penalty)
+    gamma_power: 0.1  # ↓ from 0.1 (moderate power penalty)
     normalize_ee: true
-    ee_scale: 500000.0  # ↓ from 1M (moderate scaling)
+    ee_scale: 200000.0  # ↓ from 1M (moderate scaling)
 
 # Training schedule (FAST - 3 days)
 schedule:
