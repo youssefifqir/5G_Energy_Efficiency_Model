@@ -1,0 +1,64 @@
+# DQN Hyperparameters - STABILIZED for realistic 5G
+dqn:
+  # Network architecture
+  network:
+    hidden_layers: [256, 512, 256]  # 3 hidden layers
+    activation: "relu"
+    dropout: 0.1  # Add dropout for stability
+  
+  # Training parameters
+  training:
+    # Learning - REDUCED for stability
+    learning_rate: 0.00005  # ↓ from 0.0003
+    batch_size: 128
+    gamma: 0.99  # Discount factor
+    
+    # Replay buffer
+    buffer_size: 100000
+    min_buffer_size: 2000
+    
+    # Target network - LESS FREQUENT updates
+    target_update_freq: 1000  # ↑ from 100
+    soft_update_tau: 0.001  # ↓ from 0.005
+    
+    # Exploration (ε-greedy)
+    epsilon_start: 1.0
+    epsilon_end: 0.01
+    epsilon_decay: 0.996
+    
+    # Loss function - MORE ROBUST
+    loss_type: "huber"
+    huber_delta: 2.0  # ↑ from 1.0
+  
+  # Action space (discrete power levels)
+  actions:
+    n_levels: 30  # Number of discrete power levels
+    # Will be linearly spaced between min_power and max_power
+  
+  # Reward function - BALANCED scaling for realistic performance
+  reward:
+    alpha_ee: 5.0      # ↑ from 1.0 (moderate EE reward)
+    beta_qos: 10.0      # ↓ from 10.0 (balanced QoS penalty)
+    gamma_power: 0.05  # ↓ from 0.1 (moderate power penalty)
+    normalize_ee: true
+    ee_scale: 500000.0  # ↓ from 1M (moderate scaling)
+
+# Training schedule (FAST - 3 days)
+schedule:
+  # Phase 1: Exploration (short)
+  exploration:
+    n_episodes: 100
+    epsilon_range: [1.0, 0.5]
+  
+  # Phase 2: Learning (main)
+  learning:
+    n_episodes: 400
+    epsilon_range: [0.5, 0.1]
+  
+  # Phase 3: Refinement (short)
+  refinement:
+    n_episodes: 100
+    epsilon_range: [0.1, 0.01]
+  
+  # Total: 600 episodes (~2h training)
+  total_episodes: 600
