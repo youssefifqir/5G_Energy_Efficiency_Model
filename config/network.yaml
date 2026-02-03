@@ -1,13 +1,13 @@
-# Network Configuration - BALANCED realistic 5G
+# Network Configuration - Hybrid: Literature physical params + Practical system params
 network:
-  # Number of users (K) - MODERATE increase
-  n_users: 10  # ↓ from 20 (balanced load)
+  # Number of users - PRACTICAL for RL training stability
+  n_users: 10  # Increased from Zappone's K=5 (needed for RL sample efficiency)
   
   # Number of resource blocks (N)
   n_blocks: 1
   
-  # Bandwidth per block (MHz) - MODERATE reduction
-  bandwidth: 0.8  # ↑ from 0.5 (balanced sharing)
+  # Bandwidth per block - PRACTICAL for multi-user RL
+  bandwidth: 0.8  # MHz (Zappone used 1.0 for single optimization, not training)
   
   # Base station antennas (M) - Massive MIMO
   n_antennas: 50
@@ -18,34 +18,34 @@ network:
     path_loss_exponent: 3.76
     shadowing_std: 8.0  # dB
     
-    # Noise parameters - MODERATE increase
-    noise_figure: 5.0  # ↓ from 7.0 dB (balanced)
-    noise_psd: -174.0  # dBm/Hz
+    # Noise parameters - From Zappone 2016 p11
+    noise_figure: 3.0  # Zappone: "F = 3 dB"
+    noise_psd: -174.0  # dBm/Hz (Zappone: "N0 = -174 dBm/Hz")
     
-    # Hardware impairments - MODERATE
-    error_magnitude_bs: 0.12  # ↓ from 0.15
-    error_magnitude_ue: 0.03  # ↓ from 0.05
+    # Hardware impairments - From Björnson 2014
+    error_magnitude_bs: 0.10  # Björnson: "εBS = 0.08-0.15, typical 0.10"
+    error_magnitude_ue: 0.08  # Björnson: "εUE = 0.08-0.12, typical 0.08"
     
-    # Channel estimation - MODERATE degradation
-    pilot_power_tau: 0.03  # ↓ from 0.05
+    # Channel estimation - From Zappone 2016 eq 19
+    pilot_power_tau: 0.08  # Zappone: "τ = 0.08-0.1 for realistic"
   
-  # Power constraints - BALANCED range
+  # Power constraints - Practical range for RL exploration
   power:
-    min_power: -45.0  # ↑ from -50.0 (less restrictive)
-    max_power: -8.0   # ↑ from -5.0 (more realistic)
+    min_power: -45.0  # dBm (Zappone: -40, but -45 gives better action space)
+    max_power: -10.0  # dBm (Aligned with Zappone Fig 1)
     
-    # Circuit power per user - MODERATE
-    circuit_power: 12.0  # ↓ from 15.0 dBm (balanced)
+    # Circuit power per user - From Zappone 2016 p11
+    circuit_power: 10.0  # Zappone: "pc,k = 10 dBm ∀k"
   
-  # QoS constraints - MODERATE
+  # QoS constraints - From Zappone 2016 Figure 2
   qos:
     # Minimum rate as percentage of max rate
-    min_rate_percentage: 25.0  # ↓ from 30.0 (balanced QoS)
+    min_rate_percentage: 20.0  # Zappone Fig 2: "R = 20%"
     
     # Enable QoS constraints
     enable_constraints: true
   
-  # Deployment - MODERATE cell size
+  # Deployment - From Hoydis 2013
   deployment:
-    cell_radius: 800.0  # ↓ from 1000.0 m (balanced)
-    min_user_distance: 50.0  # meters from BS
+    cell_radius: 500.0  # Hoydis: "200-500m urban typical"
+    min_user_distance: 50.0  # 3GPP TR 38.901 near-field limit

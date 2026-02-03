@@ -87,13 +87,10 @@ def evaluate_agent(checkpoint_path, n_episodes=100):
 
 if __name__ == "__main__":
     checkpoints = [
-        "models/checkpoints/agent_ep1400.pt",
-        "models/checkpoints/agent_ep2700.pt",
-        "models/checkpoints/agent_ep2800.pt",
-        "models/checkpoints/agent_ep2900.pt"
+        "models/dqn_agent_final.pt"
     ]
     
     results = {}
     for cp in checkpoints:
         if os.path.exists(cp):
-            results[cp] = evaluate_agent(cp)
+            results[cp] = evaluate_agent(cp, n_episodes=500)
