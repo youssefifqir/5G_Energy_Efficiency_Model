@@ -1,0 +1,16 @@
+# Neo4j Configuration for 5G Power Control Visualization
+neo4j:
+  # Connection settings
+  uri: "bolt://localhost:7687"
+  username: "neo4j"
+  password: "password"  # CHANGE THIS to your actual password
+
+  # Database settings
+  database: "power_control_db"
+
+  # Performance settings
+  batch_size: 1  # Log every step for testing
+
+  # Visualization settings
+  enable_real_time: true
+  max_episodes_to_keep: 10  # Keep only last 10 episodes to manage database size

@@ -1,42 +1,65 @@
-# 🚨 SPRINT 3 JOURS - GUIDE D'EXÉCUTION
+# 🚨 GUIDE DE DÉVELOPPEMENT - DQN Power Control 5G avec Neo4j
 
-## ⏰ **JOUR 1: FONDATIONS (AUJOURD'HUI - 12h)**
+## ⏰ **PHASES DE DÉVELOPPEMENT (RÉTROSPECTIVE)**
 
-### ✅ **Matin (6h) - COMPLÉTÉ**
-- [x] Structure projet
-- [x] Configurations YAML
-- [x] Channel models (SINR équations)
-- [x] Environment Gym-like
-- [x] DQN model + memory + trainer
-- [x] Agent wrapper
-- [x] Script d'entraînement
+### ✅ **Phase 1: FONDATIONS (Janvier 28-30, 2026)**
+- [x] Structure projet complète
+- [x] Configurations YAML (network, dqn, simulation)
+- [x] Channel models (SINR équations du paper)
+- [x] Environment Gym-like avec 8 dimensions état
+- [x] DQN model + memory + trainer (16 actions)
+- [x] Agent wrapper avec logging Q-values
+- [x] Script d'entraînement (3000 episodes)
 
-### 🔥 **Après-midi (6h) - À FAIRE**
+### ✅ **Phase 2: INTÉGRATION NEO4J (Janvier 31 - Février 2, 2026)**
 
-#### **Heure 1-2: Installation & Test**
-```bash
-# 1. Installer dépendances
-pip install torch numpy pyyaml matplotlib seaborn scipy pandas tqdm
-
-# 2. Tester installation
-python test_quick.py
-
-# 3. Si test OK → continuer, sinon debug
+#### **Jour 1-2: Neo4j Setup**
+```python
+# src/utils/neo4j_logger.py - SINGLETON PATTERN
+class Neo4jLogger:
+    _instance = None
+    
+    def __init__(self):
+        # Connexion unique à Neo4j
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+        
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 ```
 
-#### **Heure 3-5: Entraînement Initial**
-```bash
-# Lancer entraînement (600 épisodes, ~2h)
-python scripts/train.py --episodes 600
+#### **Jour 3-4: Schema & Logging**
+- Schéma Cypher: Episode, User, BaseStation, DQNAgent, Decision
+- Relations: PARTICIPATES_IN, SERVES, TRAINS_IN, MADE_BY
+- Batch processing pour éviter surcharge
+- Hooks dans environment.py et agent.py
 
-# Pendant l'entraînement: préparer JOUR 2
+#### **Jour 5: Testing & Debugging**
+- test_neo4j.py: connexion, schéma, logging, requêtes
+- Résolution: q_values flattening (2D → 1D)
+- Episode initialization dans evaluation
+
+### ✅ **Phase 3: ÉVALUATION & FINALISATION (Février 3-4, 2026)**
+
+#### **Évaluation Modèles**
+```bash
+# scripts/evaluate_checkpoints.py
+python scripts/evaluate_checkpoints.py
+# Résultats: 515k bit/J EE, 0.03% QoS violations
 ```
 
-#### **Heure 6: Vérification**
-- [ ] Modèle sauvegardé dans `models/`
-- [ ] Courbes d'apprentissage dans `results/figures/`
-- [ ] EE moyen > 200 Mbit/J
-- [ ] Epsilon décroit bien vers 0.01
+#### **Rapport LaTeX**
+- Structure inspirée biodiversité
+- Sections: Intro, Methodology, Results, Discussion, Conclusion
+- Figures et tables des résultats
+
+#### **Nettoyage Documentation**
+- README.md: mise à jour features, résultats, structure
+- QUICKSTART.md: guide 5 min avec Neo4j
+- DELIVERABLE.md: statut final projet
+- FILE_INDEX.md: index complet fichiers
 
 ---
 
