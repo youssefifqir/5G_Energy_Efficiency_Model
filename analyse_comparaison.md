@@ -94,7 +94,7 @@ Les deux méthodes sont comparées sur les **mêmes réalisations de canal** (é
 
 ### 5.1 Diagramme en Barres (`comparison_bar.png`)
 
-![Diagramme en barres](results/figures/comparison_bar.png)
+![Diagramme en barres](results\figures\comparison_bar.png)
 
 Ce graphique présente l'**EE moyenne ± écart-type** pour chaque méthode :
 
