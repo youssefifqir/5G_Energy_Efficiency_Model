@@ -46,8 +46,6 @@ class DQNTrainer:
         self.config = cfg
         self.device = torch.device(device if torch.cuda.is_available() else "cpu")
         
-        print(f"Using device: {self.device}")
-        
         # Create policy and target networks
         hidden_layers = cfg['network']['hidden_layers']
         dropout = cfg['network'].get('dropout', 0.0)

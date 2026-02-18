@@ -1,244 +1,216 @@
 """
-Channel Models for 5G Power Control
-Implements SINR equations from paper (equation 1, Section II-C)
+Massive MIMO Channel Model for 5G Energy-Efficient Power Control
+================================================================
+Implements the SINR model from:
+  A. Zappone et al., "Energy-Efficient Power Control: A Look at 5G Wireless Technologies"
+
+General SINR (Equation 1):
+  gamma_k = alpha_k * p_k / (sigma^2 + phi_k * p_k + sum_{j!=k} omega_kj * p_j)
+
+Massive MIMO with hardware impairments (Section III-A):
+  alpha_k = M * d_k          (array gain x large-scale fading)
+  phi_k   = eps^2 * M * d_k  (self-interference from hardware impairments)
+  omega_kj = d_j              (cross-interference from user j)
+  sigma^2 = F * N0 * B       (thermal noise power)
+
+  => gamma_max = alpha_k / phi_k = 1 / eps^2  (max SINR limited by HW quality)
 """
 
 import numpy as np
-from typing import Tuple, Dict
+from typing import Tuple
 import yaml
 
 
-class ChannelModel:
-    """Base class for channel modeling"""
-    
+class MassiveMIMOChannel:
+    """
+    Massive MIMO Channel with Hardware Impairments.
+
+    Supports dynamic channels:
+      - Large-scale fading (path loss + shadow fading) updated per episode
+      - Small-scale fading (channel hardening residual) updated per step
+    """
+
     def __init__(self, config_path: str = "config/network.yaml"):
         with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)['network']
-        
-        self.n_users = self.config['n_users']
-        self.n_antennas = self.config['n_antennas']
-        self.n_blocks = self.config['n_blocks']
-        
+            cfg = yaml.safe_load(f)['network']
+        self.config = cfg
+
+        # System parameters
+        self.n_users = cfg['n_users']
+        self.n_antennas = cfg['n_antennas']
+        self.bandwidth = cfg['bandwidth'] * 1e6  # Hz
+
         # Channel parameters
-        self.path_loss_exp = self.config['channel']['path_loss_exponent']
-        self.shadowing_std = self.config['channel']['shadowing_std']
-        
-        # Noise parameters (Section VII-A)
-        F_dB = self.config['channel']['noise_figure']
-        N0_dBm = self.config['channel']['noise_psd']
-        B_MHz = self.config['bandwidth']
-        
-        # Convert to linear scale
-        F_linear = 10**(F_dB / 10)
-        N0_linear = 10**(N0_dBm / 10) * 1e-3  # mW to W
-        self.noise_power = F_linear * N0_linear * (B_MHz * 1e6)  # Watts
-        
-        # Hardware impairments
-        self.eps_bs = self.config['channel']['error_magnitude_bs']
-        self.eps_ue = self.config['channel']['error_magnitude_ue']
-        
-        # Pilot power parameter (equation 19)
-        self.tau = self.config['channel']['pilot_power_tau']
-        
-        # User positions (initialized randomly)
+        self.path_loss_exp = cfg['channel']['path_loss_exponent']
+        self.shadowing_std = cfg['channel']['shadowing_std']
+
+        # Noise: sigma^2 = F * N0 * B
+        F_dB = cfg['channel']['noise_figure']
+        N0_dBm_Hz = cfg['channel']['noise_psd']
+        F_lin = 10 ** (F_dB / 10)
+        N0_lin = 10 ** (N0_dBm_Hz / 10) * 1e-3   # W/Hz
+        self.noise_power = F_lin * N0_lin * self.bandwidth  # W
+
+        # Hardware impairment parameter
+        eps_bs = cfg['channel']['error_magnitude_bs']
+        eps_ue = cfg['channel']['error_magnitude_ue']
+        self.epsilon_sq = eps_bs ** 2 + eps_ue ** 2
+
+        # Deployment
+        self.cell_radius = cfg['deployment']['cell_radius']
+        self.min_distance = cfg['deployment']['min_user_distance']
+
+        # State
         self.user_positions = None
-        self.reset_positions()
-    
-    def reset_positions(self):
-        """Reset user positions randomly in cell"""
-        cell_radius = self.config['deployment']['cell_radius']
-        min_dist = self.config['deployment']['min_user_distance']
-        
-        self.user_positions = []
-        for _ in range(self.n_users):
-            # Random position in cell (polar coordinates)
-            r = np.random.uniform(min_dist, cell_radius)
-            theta = np.random.uniform(0, 2 * np.pi)
-            x = r * np.cos(theta)
-            y = r * np.sin(theta)
-            self.user_positions.append([x, y])
-        
-        self.user_positions = np.array(self.user_positions)
-    
-    def compute_distance(self, user1_idx: int, user2_idx: int = None) -> float:
-        """Compute distance between users or to BS (at origin)"""
-        pos1 = self.user_positions[user1_idx]
-        
-        if user2_idx is None:
-            # Distance to BS at origin
-            return np.linalg.norm(pos1)
-        else:
-            # Distance between users
-            pos2 = self.user_positions[user2_idx]
-            return np.linalg.norm(pos1 - pos2)
-    
-    def compute_path_loss(self, distance: float) -> float:
-        """
-        Compute path loss coefficient
-        
-        d_kl = distance * path_loss_factor
-        """
-        if distance < 1.0:
-            distance = 1.0  # Avoid singularity
-        
-        # Path loss model
-        path_loss_dB = 10 * self.path_loss_exp * np.log10(distance)
-        
-        # Add shadowing (log-normal)
-        shadowing_dB = np.random.normal(0, self.shadowing_std)
-        
-        # Convert to linear scale
-        total_loss_dB = path_loss_dB + shadowing_dB
-        d_kl = 10**(-total_loss_dB / 10)
-        
-        return d_kl
+        self.large_scale_fading = None   # d_k for each user (K,)
+        self.effective_fading = None     # d_k * fast-fading factor (K,)
 
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+    def reset(self):
+        """New episode: randomize positions and large-scale fading."""
+        self._place_users()
+        self._compute_large_scale_fading()
+        self.effective_fading = self.large_scale_fading.copy()
 
-class MassiveMIMOChannel(ChannelModel):
-    """
-    Massive MIMO Channel Model with Hardware Impairments
-    Based on Section II-C1 (equations 16-23)
-    """
-    
-    def __init__(self, config_path: str = "config/network.yaml"):
-        super().__init__(config_path)
-        
-        # Large-scale fading coefficients (d_ilj)
-        self.large_scale_fading = None
-        
-        # MMSE channel estimation parameters (ρ_iik)
-        self.channel_estimation_quality = None
-        
-        self.update_channel_statistics()
-    
-    def update_channel_statistics(self):
+    def step_channel(self):
         """
-        Update large-scale channel statistics
-        Computes d_ilj for all user pairs
+        Per-step channel dynamics (channel hardening residual).
+
+        In massive MIMO with M antennas, after MRC the effective channel
+        gain concentrates around its mean with variance ~1/M.
+        We model the residual fast fading as a multiplicative perturbation:
+          d_k_eff = d_k * (1 + delta_k),  delta_k ~ N(0, 1/sqrt(M))
+
+        This gives realistic ~+-1-2 dB variation for M=50.
         """
-        # For single-cell scenario (S=1)
-        self.large_scale_fading = np.zeros((self.n_users, self.n_users))
-        
-        for k in range(self.n_users):
-            # d_iik: user k to its serving BS
-            dist_k = self.compute_distance(k)
-            self.large_scale_fading[k, k] = self.compute_path_loss(dist_k)
-        
-        # Channel estimation quality (equation 19)
-        self.channel_estimation_quality = np.zeros(self.n_users)
-        for k in range(self.n_users):
-            d_iik = self.large_scale_fading[k, k]
-            
-            # ρ_iik = d_iik / (τ + Σ_l d_ilk)
-            denominator = self.tau + np.sum(self.large_scale_fading[:, k])
-            self.channel_estimation_quality[k] = d_iik / denominator
-    
-    def compute_sinr_coefficients(self, user_idx: int) -> Tuple[float, float, np.ndarray]:
+        M = self.n_antennas
+        delta = np.random.normal(0, 1.0 / np.sqrt(M), size=self.n_users)
+        self.effective_fading = self.large_scale_fading * (1.0 + delta)
+        self.effective_fading = np.maximum(self.effective_fading, 1e-30)
+
+    # ------------------------------------------------------------------
+    # SINR (Equation 1)
+    # ------------------------------------------------------------------
+    def compute_sinr_coefficients(self, user_idx: int):
         """
-        Compute SINR coefficients for equation (1): γ_k,n = α_k,n * p_k,n / (σ²_k,n + φ_k,n * p_k,n + Σ ω_kj,n * p_j,n)
-        
-        Returns:
-            α_k: Useful signal coefficient (equation 21)
-            φ_k: Self-interference coefficient (equation 22)
-            ω_kj: Interference coefficients from other users (equation 21)
+        Compute SINR coefficients for user k:
+          alpha_k  = M * d_k
+          phi_k    = eps^2 * M * d_k
+          omega_kj = d_j
+          sigma^2  = noise_power
+
+        Returns (alpha_k, phi_k, omega_kj_array, sigma_sq)
         """
-        k = user_idx
-        
-        # Get channel parameters
-        d_iik = self.large_scale_fading[k, k]
-        rho_iik = self.channel_estimation_quality[k]
-        
-        # α_k = ρ²_iik * M (equation 21 with massive MIMO array gain)
-        alpha_k = rho_iik ** 2 * self.n_antennas
-        
-        # φ_k = d_iik * ρ_iik + Σ_{l≠i} ρ²_ilk (equation 22)
-        # For single cell (l=i only), simplified:
-        phi_k = d_iik * rho_iik
-        
-        # Add hardware impairments effect
-        if self.eps_bs > 0:
-            # Hardware impairments increase self-interference
-            phi_k += (self.eps_bs ** 2) * rho_iik
-        
-        # ω_kj = d_ilj * ρ_iik (equation 21)
+        d_k = self.effective_fading[user_idx]
+        M = self.n_antennas
+
+        alpha_k = M * d_k
+        phi_k = self.epsilon_sq * M * d_k
+
         omega_kj = np.zeros(self.n_users)
         for j in range(self.n_users):
-            if j != k:
-                # Interference from user j to user k
-                d_iij = self.large_scale_fading[j, j]  # In single-cell
-                omega_kj[j] = d_iij * rho_iik
-        
-        # σ²_k = σ² * ρ_iik (thermal noise scaled by channel quality)
-        sigma_sq_k = self.noise_power * rho_iik
-        
-        return alpha_k, phi_k, omega_kj, sigma_sq_k
-    
-    def compute_sinr(self, powers: np.ndarray, user_idx: int, block_idx: int = 0) -> float:
+            if j != user_idx:
+                omega_kj[j] = self.effective_fading[j]
+
+        return alpha_k, phi_k, omega_kj, self.noise_power
+
+    def compute_sinr(self, powers: np.ndarray, user_idx: int) -> float:
         """
-        Compute SINR for user k on block n using equation (1):
-        
-        γ_k,n = (α_k,n * p_k,n) / (σ²_k,n + φ_k,n * p_k,n + Σ_{j≠k} ω_kj,n * p_j,n)
-        
+        gamma_k = alpha_k * p_k / (sigma^2 + phi_k * p_k + sum_{j!=k} omega_kj * p_j)
+
         Args:
-            powers: Power allocation vector [p_1,n, ..., p_K,n] in Watts
-            user_idx: User index k
-            block_idx: Resource block index n
-            
+            powers: (K,) array of transmit powers in Watts
+            user_idx: user index k
         Returns:
             SINR in linear scale
         """
-        k = user_idx
-        p_k = powers[k, block_idx] if powers.ndim > 1 else powers[k]
-        
-        # Get SINR coefficients
-        alpha_k, phi_k, omega_kj, sigma_sq_k = self.compute_sinr_coefficients(k)
-        
-        # Compute interference from other users
+        alpha_k, phi_k, omega_kj, sigma_sq = self.compute_sinr_coefficients(user_idx)
+        p_k = powers[user_idx]
+
         interference = 0.0
         for j in range(self.n_users):
-            if j != k:
-                p_j = powers[j, block_idx] if powers.ndim > 1 else powers[j]
-                interference += omega_kj[j] * p_j
-        
-        # SINR (equation 1)
+            if j != user_idx:
+                interference += omega_kj[j] * powers[j]
+
         numerator = alpha_k * p_k
-        denominator = sigma_sq_k + phi_k * p_k + interference
-        
-        # Avoid division by zero
-        if denominator < 1e-20:
-            denominator = 1e-20
-        
-        sinr = numerator / denominator
-        
+        denominator = sigma_sq + phi_k * p_k + interference
+        denominator = max(denominator, 1e-30)
+
+        return numerator / denominator
+
+    def compute_all_sinr(self, powers: np.ndarray) -> np.ndarray:
+        """Compute SINR for all K users. Returns (K,) array."""
+        sinr = np.zeros(self.n_users)
+        for k in range(self.n_users):
+            sinr[k] = self.compute_sinr(powers, k)
         return sinr
-    
-    def compute_max_sinr(self, user_idx: int) -> float:
+
+    def compute_max_sinr(self, user_idx: int = 0) -> float:
         """
-        Compute maximum achievable SINR (γ̄_k) in absence of interference and noise
-        
-        γ̄_k = α_k / φ_k (equation 12)
+        Maximum achievable SINR: gamma_bar = alpha_k / phi_k = 1 / eps^2
+        (Equation 12 in the article)
         """
-        alpha_k, phi_k, _, _ = self.compute_sinr_coefficients(user_idx)
-        
-        if phi_k < 1e-20:
-            return 1e10  # Very large SINR
-        
-        return alpha_k / phi_k
-    
-    def compute_rate(self, sinr: float) -> float:
+        if self.epsilon_sq < 1e-20:
+            return 1e10
+        return 1.0 / self.epsilon_sq
+
+    @staticmethod
+    def compute_rate(sinr: float) -> float:
+        """Achievable rate in bit/s/Hz: R = log2(1 + gamma)"""
+        return np.log2(1.0 + max(sinr, 0.0))
+
+    def compute_ee(self, rate: float, power: float, p_circuit: float) -> float:
         """
-        Compute achievable rate in bit/s/Hz
-        
-        R = B * log₂(1 + γ)
+        Energy Efficiency (bit/Joule):  EE = B * R / (p_c + p)
         """
-        rate = np.log2(1 + sinr)
-        return rate
+        denom = p_circuit + power
+        if denom < 1e-20:
+            denom = 1e-20
+        return self.bandwidth * rate / denom
+
+    def compute_mu(self, powers: np.ndarray, user_idx: int) -> float:
+        """
+        Equivalent channel gain (mu_k) used by Dinkelbach baseline:
+          mu_k = alpha_k / (sigma^2 + sum_{j!=k} omega_kj * p_j)
+        """
+        alpha_k, _, omega_kj, sigma_sq = self.compute_sinr_coefficients(user_idx)
+        interference = sum(omega_kj[j] * powers[j]
+                           for j in range(self.n_users) if j != user_idx)
+        denom = sigma_sq + interference
+        return alpha_k / max(denom, 1e-30)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _place_users(self):
+        """Place K users uniformly in the cell (annular region)."""
+        positions = []
+        for _ in range(self.n_users):
+            r = np.random.uniform(self.min_distance, self.cell_radius)
+            theta = np.random.uniform(0, 2 * np.pi)
+            positions.append([r * np.cos(theta), r * np.sin(theta)])
+        self.user_positions = np.array(positions)
+
+    def _compute_large_scale_fading(self):
+        """
+        d_k = 10^(-(PL_k + S_k) / 10)
+        PL_k = 10 * alpha * log10(r_k)   [dB]
+        S_k  ~ N(0, sigma_s^2)           [dB]  (shadow fading)
+        """
+        self.large_scale_fading = np.zeros(self.n_users)
+        for k in range(self.n_users):
+            dist = np.linalg.norm(self.user_positions[k])
+            dist = max(dist, 1.0)
+            pl_dB = 10 * self.path_loss_exp * np.log10(dist)
+            shadow_dB = np.random.normal(0, self.shadowing_std)
+            self.large_scale_fading[k] = 10 ** (-(pl_dB + shadow_dB) / 10)
 
 
-# Factory function
-def create_channel_model(model_type: str = "massive_mimo", config_path: str = "config/network.yaml"):
-    """Factory function to create channel models"""
+def create_channel_model(model_type: str = "massive_mimo",
+                         config_path: str = "config/network.yaml"):
+    """Factory function."""
     if model_type == "massive_mimo":
         return MassiveMIMOChannel(config_path)
-    else:
-        raise ValueError(f"Unknown channel model: {model_type}")
+    raise ValueError(f"Unknown channel model: {model_type}")

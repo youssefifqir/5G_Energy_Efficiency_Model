@@ -1,64 +1,51 @@
-# DQN Hyperparameters - STABILIZED for realistic 5G
+# ============================================================
+# DQN Hyperparameters — Tuned for Decentralized Power Control
+# ============================================================
 dqn:
-  # Network architecture
+  # --- Network architecture ---
   network:
-    hidden_layers: [256, 512, 256]  # 3 hidden layers
+    hidden_layers: [128, 256, 128]   # 3 hidden layers
     activation: "relu"
-    dropout: 0.1  # Add dropout for stability
-  
-  # Training parameters
+    dropout: 0.0                     # No dropout (cleaner gradients)
+
+  # --- Training parameters ---
   training:
-    # Learning - REDUCED for stability
-    learning_rate: 0.00001  # ↓ from 0.0003
-    batch_size: 128
-    gamma: 0.99  # Discount factor
-    
+    learning_rate: 0.0001            # Lower LR for stable convergence
+    batch_size: 256
+    gamma: 0.95                      # Discount factor (shorter horizon for power control)
+
     # Replay buffer
     buffer_size: 100000
-    min_buffer_size: 5000  # Increased from 2000 for better initialization
-    
-    # Target network - VERY INFREQUENT updates for stability
-    target_update_freq: 2000  # Doubled from 1000 to prevent Q-value divergence
-    soft_update_tau: 0.001
-    
-    # Exploration (ε-greedy) - SLOWER decay
-    epsilon_start: 1.0
-    epsilon_end: 0.05
-    epsilon_decay: 0.9995  # Slower from 0.999 for longer exploration
-    
-    # Loss function - MORE ROBUST
-    loss_type: "huber"
-    huber_delta: 2.0  # ↑ from 1.0
-  
-  # Action space (discrete power levels)
-  actions:
-    n_levels: 16  # Number of discrete power levels
-    # Will be linearly spaced between min_power and max_power
-  
-  # Reward function - BALANCED scaling for realistic performance
-  reward:
-    alpha_ee: 1.0      # ↑ from 1.0 (moderate EE reward)
-    beta_qos: 10.0      # ↓ from 10.0 (balanced QoS penalty)
-    gamma_power: 0.1  # ↓ from 0.1 (moderate power penalty)
-    normalize_ee: true
-    ee_scale: 200000.0  # ↓ from 1M (moderate scaling)
+    min_buffer_size: 2000            # Start training after this many transitions
 
-# Training schedule (FAST - 3 days)
+    # Target network
+    target_update_freq: 500
+    soft_update_tau: 0.005           # Soft update rate
+
+    # Exploration (epsilon-greedy)
+    epsilon_start: 1.0
+    epsilon_end: 0.02
+    epsilon_decay: 0.9995            # Per-episode decay
+
+    # Loss function
+    loss_type: "huber"
+    huber_delta: 1.0
+
+  # --- Action space ---
+  actions:
+    n_levels: 32                     # 32 log-spaced power levels (good resolution)
+
+  # --- Reward function ---
+  reward:
+    alpha_ee: 1.0                    # EE reward coefficient
+    beta_qos: 5.0                    # QoS violation penalty (stronger to reduce violations)
+    gamma_power: 0.02                # Power penalty coefficient (milder)
+    ee_reference: 300000000.0        # 3e8 = 300 Mbit/J normalization (rewards in ~[-1,+1])
+
+# --- Training schedule ---
 schedule:
-  # Phase 1: Exploration (short)
-  exploration:
-    n_episodes: 100
-    epsilon_range: [1.0, 0.5]
-  
-  # Phase 2: Learning (main)
-  learning:
-    n_episodes: 400
-    epsilon_range: [0.5, 0.1]
-  
-  # Phase 3: Refinement (short)
-  refinement:
-    n_episodes: 100
-    epsilon_range: [0.1, 0.01]
-  
-  # Total: 600 episodes (~2h training)
-  total_episodes: 600
+  total_episodes: 10000              # Enough for convergence
+  max_steps_per_episode: 200         # Steps per episode
+  eval_frequency: 100                # Evaluate every N episodes
+  checkpoint_frequency: 500          # Save every N episodes
+  log_frequency: 50                  # Print stats every N episodes

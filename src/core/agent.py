@@ -6,42 +6,28 @@ High-level interface for DQN-based power control agent
 import numpy as np
 import torch
 from dqn.trainer import DQNTrainer
-from utils.neo4j_logger import Neo4jLogger
-
-# Initialize Neo4j logger
-neo4j_logger = None
 
 
 class DQNAgent:
     """
     DQN Agent for power control
-    
+
     Provides simple interface for:
     - Action selection
     - Learning from experience
     - Saving/loading models
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  user_id: int,
                  state_dim: int,
                  action_dim: int,
                  config_path: str = "config/dqn.yaml",
                  device: str = "cuda"):
-        """
-        Initialize agent
-        
-        Args:
-            user_id: User identifier
-            state_dim: State space dimension
-            action_dim: Number of actions
-            config_path: Configuration file path
-            device: Computation device
-        """
         self.user_id = user_id
         self.state_dim = state_dim
         self.action_dim = action_dim
-        
+
         # Create DQN trainer
         self.trainer = DQNTrainer(
             state_dim=state_dim,
@@ -49,96 +35,46 @@ class DQNAgent:
             config_path=config_path,
             device=device
         )
-        
+
         # Episode tracking
         self.episode_rewards = []
         self.episode_steps = []
         self.current_episode_reward = 0.0
         self.current_episode_step = 0
         self.total_steps = 0
-        
-        # Initialize Neo4j logger if not already done
-        global neo4j_logger
-        if neo4j_logger is None:
-            neo4j_logger = Neo4jLogger()
+        self.train_every = 16  # Train every N steps (avoids overhead of 250 train calls/ep)
     
     def select_action(self, state: np.ndarray, training: bool = True) -> int:
-        """
-        Select action based on current state
-        
-        Args:
-            state: Current state
-            training: If True, use epsilon-greedy; if False, use greedy
-            
-        Returns:
-            Action index
-        """
+        """Select action based on current state."""
         if training:
             action = self.trainer.select_action(state)
         else:
-            # Greedy action (no exploration)
             action = self.trainer.policy_net.get_action(state, epsilon=0.0)
-
-        # Log agent decision
-        state_tensor = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
-        q_values = self.trainer.policy_net(state_tensor)
-        neo4j_logger.log_agent_decision(
-            user_id=self.user_id,
-            state=state.tolist(),
-            action=action,
-            q_values=q_values.detach().numpy().flatten().tolist(),
-            epsilon=self.trainer.epsilon,
-            reward=0.0,
-            step=self.total_steps
-        )
-
         return action
     
     def learn(self, state, action, reward, next_state, done) -> float:
-        """
-        Learn from transition
-        
-        Args:
-            state: Current state
-            action: Taken action
-            reward: Received reward
-            next_state: Next state
-            done: Episode termination flag
-            
-        Returns:
-            Training loss (0.0 if not enough samples)
-        """
+        """Learn from transition. Returns training loss."""
         # Store transition
         self.trainer.store_transition(state, action, reward, next_state, done)
-        
+
         # Update episode stats
         self.current_episode_reward += reward
         self.current_episode_step += 1
         self.total_steps += 1
-        
-        # Train
-        loss = self.trainer.train_step()
-        
+
+        # Train every N steps (reduces CPU↔GPU transfer overhead)
+        if self.total_steps % self.train_every == 0:
+            loss = self.trainer.train_step()
+        else:
+            loss = 0.0
+
         # End of episode
         if done:
             self.episode_rewards.append(self.current_episode_reward)
             self.episode_steps.append(self.current_episode_step)
             self.trainer.episode_end()
-            
-            # Reset episode counters
             self.current_episode_reward = 0.0
             self.current_episode_step = 0
-        
-        # Log learning step
-        neo4j_logger.log_agent_decision(
-            user_id=self.user_id,
-            state=state,
-            action=action,
-            q_values=None,  # Optional: Log Q-values if available
-            epsilon=self.trainer.epsilon,
-            reward=reward,
-            step=self.total_steps
-        )
 
         return loss
     
@@ -170,9 +106,5 @@ class DQNAgent:
         return stats
 
     def close(self):
-        """Close agent"""
-        # self.trainer.close()  # Trainer doesn't have close method
-        global neo4j_logger
-        if neo4j_logger is not None:
-            neo4j_logger.close()
-            neo4j_logger = None
+        """Close agent resources."""
+        pass
