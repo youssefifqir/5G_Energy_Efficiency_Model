@@ -121,7 +121,7 @@ Thumbs.db
 
 # Data and results
 data/
-results/
+# results/
 experiments/
 #models/
 #*.pt
