@@ -55,10 +55,17 @@ $$
 
 ### 2.2 Efficacité Énergétique (EE)
 
-L'EE d'un utilisateur $k$ (en bit/J) :
-$$
-\eta_k = \frac{B \log_2(1 + \gamma_k)}{p_{c,k} + p_k}
-$$
+
+L'EE d'un utilisateur k (en bit/J) :
+
+   η_k = [B × log2(1 + γ_k)] / (p_c,k + p_k)
+
+où :
+- η_k : efficacité énergétique de l'utilisateur k
+- B : bande passante
+- γ_k : SINR de l'utilisateur k
+- p_c,k : puissance de circuit
+- p_k : puissance de transmission
 
 - $p_{c,k}$ : puissance de circuit
 
