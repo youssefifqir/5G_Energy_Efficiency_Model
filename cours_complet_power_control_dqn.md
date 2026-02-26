@@ -40,40 +40,40 @@ Deux grandes approches sont étudiées :
 
 ### 2.1 Modèle de Canal et SINR
 
-On considère un réseau Massive MIMO avec $K$ utilisateurs, $M$ antennes à la station de base, et $B$ la bande passante. Le canal est soumis à l'atténuation, au fading, au bruit et aux impairments matériels.
+On considère un réseau Massive MIMO avec `K` utilisateurs, `M` antennes à la station de base, et `B` la bande passante. Le canal est soumis à l'atténuation (path loss), au fading (petit et grand échelle), au bruit et aux impairments matériels.
 
-L'expression du SINR pour l'utilisateur $k$ :
-$$
-\gamma_k = \frac{\alpha_k p_k}{\sigma^2 + \phi_k p_k + \sum_{j \neq k} \omega_{kj} p_j}
-$$
+Expression du SINR pour l'utilisateur `k` (échelle linéaire) :
 
-- $p_k$ : puissance de transmission de l'utilisateur $k$
-- $\alpha_k$ : gain utile
-- $\phi_k$ : auto-interférence
-- $\omega_{kj}$ : interférence croisée
-- $\sigma^2$ : bruit
+   # SINR for user k (linear scale)
+   gamma_k = (alpha_k * p_k) / (sigma_sq + phi_k * p_k + sum_{j != k} omega_kj * p_j)
+
+où les variables utilisées dans le code sont nommées comme suit :
+
+- `p_k` : puissance de transmission de l'utilisateur k (Watts)
+- `alpha_k` : gain utile effectif (souvent `M * d_k_eff` dans la modélisation Massive MIMO)
+- `phi_k` : coefficient d'auto-interférence lié aux impairments matériels
+- `omega_kj` : coefficient d'interférence croisée provenant de l'utilisateur j
+- `sigma_sq` : puissance de bruit (W)
 
 ### 2.2 Efficacité Énergétique (EE)
 
 
 L'EE d'un utilisateur k (en bit/J) :
 
-$$
-\eta_k = \frac{B \log_2(1 + \gamma_k)}{p_{c,k} + p_k}
-$$
+   eta_k = (B * log2(1 + gamma_k)) / (p_c_k + p_k)
 
 où :
-- η_k : efficacité énergétique de l'utilisateur k
-- B : bande passante
-- γ_k : SINR de l'utilisateur k
-- p_c,k : puissance de circuit
-- p_k : puissance de transmission
 
-- $p_{c,k}$ : puissance de circuit
+- `eta_k` : efficacité énergétique de l'utilisateur k (bit/J)
+- `B` : bande passante (Hz) — dans le code `network.bandwidth` (1.0 MHz dans la config → converti en Hz)
+- `gamma_k` : SINR du user k (échelle linéaire)
+- `p_c_k` : puissance de circuit (Watts) — convertie depuis `config/network.yaml`
+- `p_k` : puissance de transmission (Watts)
 
 ### 2.3 Contraintes
-- **Puissance** : $p_k \in [p_{min}, p_{max}]$
-- **QoS** : $\log_2(1 + \gamma_k) \geq \theta_k$ (débit minimal)
+- **Puissance** : `p_k` in [`p_min`, `p_max`]
+
+- **QoS** : `log2(1 + gamma_k) >= theta_k` (débit minimal en bit/s/Hz)
 
 ---
 
