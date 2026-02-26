@@ -58,7 +58,9 @@ $$
 
 L'EE d'un utilisateur k (en bit/J) :
 
-   η_k = [B × log2(1 + γ_k)] / (p_c,k + p_k)
+$$
+\eta_k = \frac{B \log_2(1 + \gamma_k)}{p_{c,k} + p_k}
+$$
 
 où :
 - η_k : efficacité énergétique de l'utilisateur k
