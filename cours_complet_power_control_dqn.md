@@ -83,6 +83,34 @@ où :
 - Modélisation réaliste : fading Rayleigh, pertes de trajet, shadowing, impairments matériels
 - Génération aléatoire des positions utilisateurs
 
+### 3.1.1 Implémentation détaillée (comment c'est codé)
+L'implémentation exacte se trouve dans le fichier [src/core/network.py](src/core/network.py).
+
+- Placement des utilisateurs : `MassiveMIMOChannel._place_users()` place les K utilisateurs dans un anneau entre `min_user_distance` et `cell_radius` avec angle uniforme. Les positions sont tirées en coordonnées polaires puis converties en (x,y).
+
+- Perte de chemin (path loss) : pour chaque utilisateur k on calcule
+   PL_k(dB) = 10 * alpha * log10(r_k)
+   puis on ajoute un terme de shadowing `S_k ~ N(0, sigma_s^2)` (en dB). La perte linéaire est
+   d_k = 10^{-(PL_k + S_k)/10}  (implémenté dans `_compute_large_scale_fading()`).
+
+- Fading rapide résiduel (par pas d'environnement) : la méthode `step_channel()` applique une variation multiplicative
+   d_k_eff = d_k * (1 + delta_k) avec `delta_k ~ N(0, 1/sqrt(M))`. Ceci modélise la *channel hardening residual* pour M grandes antennes (variance ~ 1/M).
+
+- Bruit thermique : calculé comme sigma^2 = F * N0 * B où `F` est la noise figure (linéaire), `N0` est PSD (W/Hz) et `B` la bande passante (Hz). Voir l'initialisation `self.noise_power`.
+
+- Impairments matériels : deux paramètres `eps_bs` et `eps_ue` sont chargés dans la config; on utilise `epsilon_sq = eps_bs^2 + eps_ue^2`. Cela fixe la limite supérieure du SINR :
+   gamma_max = 1 / epsilon_sq (implémenté par `compute_max_sinr()`).
+
+- Coefficients SINR (méthode clé) : pour un utilisateur k la fonction `compute_sinr_coefficients(k)` retourne
+   - `alpha_k = M * d_k_eff`
+   - `phi_k   = epsilon_sq * M * d_k_eff`
+   - `omega_kj = d_j_eff` pour chaque j != k
+   - `sigma_sq = noise_power`
+   Ces coefficients sont ensuite utilisés dans `compute_sinr(powers, k)` pour calculer
+   gamma_k = alpha_k * p_k / (sigma_sq + phi_k * p_k + sum_{j!=k} omega_kj * p_j)
+
+Toutes ces routines sont dans [src/core/network.py](src/core/network.py).
+
 ### 3.2 Structure de l'Environnement
 - **États** : pour chaque utilisateur, vecteur contenant SINR, puissance, débit, violation QoS, etc.
 - **Actions** : choix du niveau de puissance parmi $N$ niveaux (discrétisation logarithmique)
@@ -90,6 +118,65 @@ où :
   - Proportionnelle à l'EE
   - Pénalité forte si QoS non respectée
   - Pénalité douce pour la puissance élevée
+
+### 3.2.1 Implémentation : `PowerControlEnv` (usage et détails)
+L'implémentation de l'environnement se trouve dans [src/core/environment.py](src/core/environment.py). Les points clés :
+
+- **Initialisation des puissances et contraintes** : `reset()` initialise `current_powers` par tirage uniforme entre `p_min` et `0.1 * p_max` (conversion dBm→W faite à partir de `config/network.yaml`). Les conversions se font par :
+
+```python
+# dBm -> W
+def dbm_to_w(dbm):
+      return 10 ** (dbm / 10) * 1e-3
+```
+
+- **Espace d'actions** : construction d'une grille logarithmique (`np.geomspace(p_min, p_max, n_levels)`) stockée dans `self.power_levels`. Une action entière i sélectionne `self.power_levels[i]`.
+
+- **Pas d'exécution (`step`)** :
+   1. `self.channel.step_channel()` met à jour le fading rapide.
+   2. Les actions (dict par user ou unique pour single-user) sont mappées sur `current_powers` via `power_levels`.
+   3. On calcule `sinr`, `rate`, `ee` pour chaque utilisateur en appelant `self.channel.compute_sinr`, `compute_rate`, `compute_ee`.
+   4. Le reward est calculé par `_compute_reward_and_info(user_idx)` (voir ci‑dessous).
+
+- **État (6D)** : pour chaque utilisateur l'état renvoyé par `_get_state(k)` contient :
+   0. `sinr_dB_norm` = clip(10*log10(sinr) / 25, -1, 1)
+   1. `power_norm` = normalisation log10(p_k) → [0,1]
+   2. `interf_norm` = normalisation log10(somme des puissances interférentes)
+   3. `mu_norm` = normalisation log10(mu_k) où `mu_k = alpha_k / (sigma^2 + ∑_{j!=k} omega_kj * p_j)` (entrée clé pour Dinkelbach)
+   4. `rate_norm` = rate / max_rate
+   5. `qos_margin` = (rate - theta) / theta, clipped à [-1,1]
+
+   Ces normalisations facilitent l'apprentissage et évitent d'exposer des échelles très disparates au réseau.
+
+- **Récompense** : implémentée dans `_compute_reward_and_info()` :
+
+   reward = alpha_ee * (EE / EE_ref)  -  beta_qos * qos_penalty  -  gamma_power * (p_k / p_max)
+
+   où `EE = B * rate / (p_c + p_k)`. Si la QoS est violée, on applique une pénalité proportionnelle au déficit. Le résultat est soft-clipé dans [-3, 2]. Les coefficients `(alpha_ee, beta_qos, gamma_power)` viennent de `config/dqn.yaml`.
+
+- **Info utile** : la fonction renvoie aussi un dictionnaire `info` contenant `sinr`, `rate`, `energy_efficiency`, `power_watts`, `power_dBm`, `qos_violated` pour l'analyse.
+
+Exemples d'utilisation (multi-agent) :
+
+```python
+env = PowerControlEnv()
+states = env.reset()
+actions = {k: agent.select_action(states[k]) for k, agent in agents.items()}
+next_states, rewards, done, infos = env.step(actions)
+```
+
+Exemple single-user (évaluation du DQN glouton) :
+
+```python
+env = PowerControlEnv(user_idx=0)
+state = env.reset()
+for t in range(50):
+      action = agent.select_action(state, training=False)
+      state, reward, done, info = env.step(action, other_users_actions=other_actions)
+      if done: break
+```
+
+Toutes ces routines sont implémentées dans [src/core/environment.py](src/core/environment.py).
 
 ---
 
