@@ -51,7 +51,7 @@ où les variables utilisées dans le code sont nommées comme suit :
 
 - `p_k` : puissance de transmission de l'utilisateur k (Watts)
 - `alpha_k` : gain utile effectif (souvent `M * d_k_eff` dans la modélisation Massive MIMO)
-- `phi_k` : coefficient d'auto-interférence lié aux impairments matériels
+- `phi_k` : cosefficient d'auto-interférence lié aux impairments matériels
 - `omega_kj` : coefficient d'interférence croisée provenant de l'utilisateur j
 - `sigma_sq` : puissance de bruit (W)
 
