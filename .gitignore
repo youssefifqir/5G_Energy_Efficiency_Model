@@ -130,3 +130,30 @@ experiments/
 # Logs
 logs/
 *.log
+
+# Claude Code local config
+.claude/
+
+# Internal planning/analysis docs -- not resume-facing
+PRD_frontend.md
+analyse_comparaison.md
+power_control_dqn.md
+presentation-plan-suggestions.md
+frontend/PRD-frontend.md
+frontend/design.md
+
+# Academic deliverables (report/article/presentation sources) -- kept locally,
+# not part of the code-repo story
+*.tex
+*.pdf
+*.pptx
+pptx_media_extracted/
+
+# Intermediate training checkpoints -- only the final model per agent is
+# tracked (models/dqn_agent_user*_final.pt); the ep500..ep10000 snapshots
+# are ~150 files of pure repo bloat
+models/checkpoints/
+
+# JS build artifacts
+frontend/node_modules/
+frontend/dist/
